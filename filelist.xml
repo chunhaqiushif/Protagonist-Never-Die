@@ -1,0 +1,9 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<contentpackage name="Protagonist Never Die (C#)" modversion="1.0.2" corepackage="False" steamworkshopid="3840822539" gameversion="1.13.5.0">
+  <Item file="%ModDir%/items.xml" />
+  <Text file="%ModDir%/Text/English/English.xml" />
+  <Text file="%ModDir%/Text/SimplifiedChinese/SimplifiedChinese.xml" />
+  <Afflictions file="%ModDir%/afflictions.xml" />
+  <Particles file="%ModDir%/ParticlePrefabs.xml" />
+  <RandomEvents file="%ModDir%/Events.xml" />
+</contentpackage>
