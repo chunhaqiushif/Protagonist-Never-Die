@@ -49,16 +49,31 @@ namespace ProtagonistNeverDie
             //   同帧第二次调用时 dt = 0，不会重复结算
             try
             {
+                _harmony = new Harmony(HarmonyId);
+
                 MethodInfo update = AccessTools.Method(typeof(GameMain), "Update");
                 if (update != null)
                 {
-                    _harmony = new Harmony(HarmonyId);
                     _harmony.Patch(update, postfix: new HarmonyMethod(
                         typeof(ProtagonistNeverDiePlugin).GetMethod(nameof(TickPostfix), BindingFlags.Static | BindingFlags.NonPublic)));
                 }
                 else
                 {
                     LuaCsLogger.Log("[Protagonist Never Die] 未找到 GameMain.Update，仅用协程驱动");
+                }
+
+                // 拦截「把耐久已归零的芯片从耳机里取出」：
+                //   UI 层已用 NonInteractable 挡住拖拽，这里兜住联机时客户端绕过界面直接发请求的情况。
+                //   销毁流程会先把物品置入移除队列（IsInRemoveQueue = true），必须放行。
+                MethodInfo removeItem = AccessTools.Method(typeof(Inventory), nameof(Inventory.RemoveItem), new[] { typeof(Item) });
+                if (removeItem != null)
+                {
+                    _harmony.Patch(removeItem, prefix: new HarmonyMethod(
+                        typeof(Core).GetMethod(nameof(Core.RemoveItemPrefix), BindingFlags.Static | BindingFlags.NonPublic)));
+                }
+                else
+                {
+                    LuaCsLogger.Log("[Protagonist Never Die] 未找到 Inventory.RemoveItem，芯片锁定只在 UI 层生效");
                 }
             }
             catch (Exception e)
@@ -104,7 +119,7 @@ namespace ProtagonistNeverDie
         private static readonly Identifier ChipRespawn = "respawn_chip";
         private static readonly Identifier ChipTeleport = "teleport_chip";
         private static readonly Identifier ChipBuff = "buff_chip";
-        private static readonly Identifier ChipMaxHealth = "maxhealth_chip";   // 生命芯片
+        private static readonly Identifier ChipMaxHealth = "maxhealth_chip";
 
         private static readonly HashSet<Identifier> ChipIdentifiers = new HashSet<Identifier>
         {
@@ -121,7 +136,7 @@ namespace ProtagonistNeverDie
         private static readonly Identifier AffHusk = "huskinfection";
         private static readonly Identifier AffSymbiosis = "husksymbiosis";
         private static readonly Identifier AffBlessing = "custom_respawnblessing";
-        private static readonly Identifier AffMaxHealthBuff = "custom_maxheathbuff"; // 生命芯片：最大生命 +25%
+        private static readonly Identifier AffMaxHealthBuff = "custom_maxheathbuff";
         private static readonly Identifier AffRespawnReady = "custom_respawnready";
         private static readonly Identifier AffRespawnCd = "custom_respawncooldown";
         private static readonly Identifier AffTeleportReady = "custom_teleportready";
@@ -153,15 +168,17 @@ namespace ProtagonistNeverDie
         private const float TeleportThreshold = -50f;     // 传送芯片触发阈值
         private const float RespawnThreshold = -65f;      // 复生芯片触发阈值
 
-        private const float HealPerSecond = 5f;          // 复生祝福每秒治疗的病症强度
+        private const float HealPerSecond = 15f;          // 复生祝福每秒治疗的病症强度
         private const float PenaltyReducePerSecond = 10f; // 复生祝福每秒削掉的「主角的代价」
         private const int TeleportDelayMs = 200;          // 传送前播特效的提前量
         private const int BlessingDelayMs = 2660;         // 除颤音效到回血生效的间隔
-        private const float Cooldown = 120f;              // 传送 / 复生各自的冷却（秒）
+        private const float TeleportCooldownSeconds = 60f;   // 传送芯片冷却（秒）
+        private const float RespawnCooldownSeconds = 240f;    // 复生芯片冷却（秒）
 
         private const float AffFullThreshold = 0.999f;    // 常驻 buff 低于该强度视为「未满」，下个 tick 补满
+        private const int ChipDestroyDelayMs = 5000;      // 耐久归零 → 锁定，N 秒后销毁
 
-        private const float TeleportChipLoss = 0.10f;     // 传送芯片耐久消耗（玩家）
+        private const float TeleportChipLoss = 0.15f;     // 传送芯片耐久消耗（玩家）
         private const float TeleportChipLossBot = 0.05f;  // 传送芯片耐久消耗（NPC）
         private const float RespawnChipLoss = 0.25f;      // 复生芯片耐久消耗（玩家）
         private const float RespawnChipLossBot = 0.10f;   // 复生芯片耐久消耗（NPC）
@@ -175,6 +192,7 @@ namespace ProtagonistNeverDie
         private static readonly Dictionary<ushort, bool> PendingBless = new Dictionary<ushort, bool>();
         private static readonly Dictionary<ushort, double> TeleportCooldown = new Dictionary<ushort, double>();
         private static readonly Dictionary<ushort, double> ReviveCooldown = new Dictionary<ushort, double>();
+        private static readonly HashSet<ushort> DestroyScheduled = new HashSet<ushort>();
         private static readonly Dictionary<Identifier, AfflictionPrefab> PrefabCache = new Dictionary<Identifier, AfflictionPrefab>();
 
         private struct ScheduledAction
@@ -199,6 +217,7 @@ namespace ProtagonistNeverDie
             PendingBless.Clear();
             TeleportCooldown.Clear();
             ReviveCooldown.Clear();
+            DestroyScheduled.Clear();
             PrefabCache.Clear();
             Scheduled.Clear();
             _clock = 0;
@@ -422,6 +441,9 @@ namespace ProtagonistNeverDie
 
             // 4) 芯片状态图标
             UpdateChipStatus(character, chips, reviving, health);
+
+            // 5) 耐久归零的芯片：锁定 + 结算完成后的销毁 / 兜底清理
+            MaintainDepletedChips(character, chips);
         }
 
         // ---------------------------------------------------------------------
@@ -449,7 +471,7 @@ namespace ProtagonistNeverDie
         {
             if (!ChipUsable(chip)) return false;
             if (IsOnMainSub(character)) return false;
-            if (InCooldown(TeleportCooldown, chip, Cooldown)) return false;
+            if (InCooldown(TeleportCooldown, chip, TeleportCooldownSeconds)) return false;
 
             Item point = FindNearestRespawnPoint(character);
             Vector2? destination = point != null ? point.WorldPosition : FindRandomSpawnPoint(character);
@@ -466,6 +488,7 @@ namespace ProtagonistNeverDie
                 try { if (character != null && !character.Removed) character.TeleportTo(target); }
                 catch (Exception e) { LogError(e); }
                 PlayTeleportFx(character, headset);
+                // 芯片销毁统一由「耐久归零 → 3 秒计时」处理，这里不再介入
             });
 
             LuaCsLogger.Log("[Protagonist Never Die] " + character.Name + " 触发传送芯片");
@@ -573,7 +596,7 @@ namespace ProtagonistNeverDie
 
             if (HasAffliction(character, AffBlessing)) return false;
             if (PendingBless.ContainsKey(character.ID)) return false;
-            if (InCooldown(ReviveCooldown, chip, Cooldown)) return false;
+            if (InCooldown(ReviveCooldown, chip, RespawnCooldownSeconds)) return false;
 
             ReviveCooldown[chip.ID] = _clock;
             PendingBless[character.ID] = true;
@@ -587,6 +610,7 @@ namespace ProtagonistNeverDie
                 if (!PendingBless.Remove(character.ID)) return;
                 if (character == null || character.Removed || character.IsDead) return;
                 ApplyFull(character, AffBlessing);
+                // 芯片销毁统一由「耐久归零 → 3 秒计时」处理，这里不再介入
             });
 
             LuaCsLogger.Log("[Protagonist Never Die] " + character.Name + " 触发复生芯片（除颤中）");
@@ -648,10 +672,80 @@ namespace ProtagonistNeverDie
 
             chip.Condition = newCondition;
 
-            if (newCondition <= 0f)
+            if (chip.Condition <= 0f)
             {
-                try { Entity.Spawner.AddItemToRemoveQueue(chip); }
-                catch (Exception e) { LogError(e); }
+                // 归零瞬间由引擎自动执行 XML 里的 OnBroken（音效 / 爆炸 / 失血）
+                chip.NonInteractable = true;          // 立即锁定，玩家拿不走
+                ScheduleChipDestroy(chip);            // 3 秒后移除物品
+            }
+        }
+
+        /// <summary>排入「N 秒后删除」的计时，同一颗芯片只排一次。</summary>
+        private static void ScheduleChipDestroy(Item chip)
+        {
+            if (chip == null || chip.Removed) return;
+            if (!DestroyScheduled.Add(chip.ID)) return;
+
+            Schedule(ChipDestroyDelayMs, () =>
+            {
+                DestroyScheduled.Remove(chip.ID);
+
+                // 计时期间被修理 / 耐久被改回正数：取消销毁
+                if (chip.Condition > 0f) return;
+
+                DestroyChip(chip);
+            });
+        }
+
+        /// <summary>把芯片排进移除队列（实际删除发生在下一帧）。</summary>
+        private static void DestroyChip(Item chip)
+        {
+            if (chip == null || chip.Removed || chip.IsInRemoveQueue) return;
+            try { Entity.Spawner.AddItemToRemoveQueue(chip); }
+            catch (Exception e) { LogError(e); }
+        }
+
+        /// <summary>
+        /// 维护「耐久归零」芯片的状态：
+        ///   * 归零 → 锁住（UI 层拿不走），并确保已排入销毁计时
+        ///   * 被修理 / 外部改回正耐久 → 解锁
+        ///   * 读档等场景下耐久已是 0 但没有计时器 → 这里补排
+        /// </summary>
+        private static void MaintainDepletedChips(Character character, Dictionary<Identifier, Item> chips)
+        {
+            foreach (Item chip in chips.Values)
+            {
+                if (chip == null) continue;
+
+                chip.NonInteractable = chip.Condition <= 0f;
+                if (chip.Condition > 0f) continue;
+
+                ScheduleChipDestroy(chip);
+            }
+        }
+
+        /// <summary>
+        /// Harmony Prefix：阻止把耐久已归零的芯片从耳机里取出。
+        /// 只在「宿主是耳机容器」+「耐久归零」+「不在移除队列」时拦截，其余一律放行。
+        /// </summary>
+        internal static bool RemoveItemPrefix(Inventory __instance, Item item)
+        {
+            try
+            {
+                if (item == null || item.Removed || item.Condition > 0f || item.IsInRemoveQueue) return true;
+
+                ItemContainer container = (__instance as ItemInventory)?.Container;
+                Item owner = container?.Item;
+                if (owner == null || !owner.HasTag(Tag)) return true;
+
+                // 耳机本体正在被销毁 / 拆解时放行，否则 0 耐久芯片会残留在被清空的容器里
+                if (owner.Removed || owner.IsInRemoveQueue) return true;
+
+                return false;   // 拒绝取出
+            }
+            catch
+            {
+                return true;
             }
         }
 
@@ -878,7 +972,7 @@ namespace ProtagonistNeverDie
             chips.TryGetValue(ChipRespawn, out Item respawnChip);
             if (respawnChip != null)
             {
-                float ratio = CooldownRatio(ReviveCooldown, respawnChip, Cooldown);
+                float ratio = CooldownRatio(ReviveCooldown, respawnChip, RespawnCooldownSeconds);
 
                 if (ratio > 0f) SetAfflictionStrength(character, AffRespawnCd, ratio * 100f);
                 else ClearAffliction(health, AffRespawnCd);
@@ -895,7 +989,7 @@ namespace ProtagonistNeverDie
             chips.TryGetValue(ChipTeleport, out Item teleportChip);
             if (teleportChip != null)
             {
-                float ratio = CooldownRatio(TeleportCooldown, teleportChip, Cooldown);
+                float ratio = CooldownRatio(TeleportCooldown, teleportChip, TeleportCooldownSeconds);
                 if (ratio > 0f)
                 {
                     ClearAffliction(health, AffTeleportReady);

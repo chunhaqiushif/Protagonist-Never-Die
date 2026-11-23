@@ -93,7 +93,8 @@
     <!-- 生命芯片：装进耳机的「增益」槽，提升最大生命值 -->
     <Item name="" identifier="maxhealth_chip" nameidentifier="maxhealth_chip"
       descriptionidentifier="maxhealth_chip" scale="0.35" category="Misc"
-      tags="smallitem,artifact_slot_headset,buff_headset_chips" cargocontaineridentifier="metalcrate"
+      tags="smallitem,artifact_slot_headset,buff_headset_chips"
+      cargocontaineridentifier="metalcrate"
       impactsoundtag="impact_metal_light">
       <Fabricate suitablefabricators="fabricator" requiredtime="10" requiresrecipe="false">
         <RequiredItem identifier="healthscanner" amount="1" />
@@ -128,6 +129,16 @@
       <Sprite texture="%ModDir%/Texture/icons.png" sourcerect="408,10,55,39" origin="0.5,0.5" />
       <Body width="30" height="18" density="10" waterdragcoefficient="8" />
       <Holdable slots="Any" handle1="0,0" msg="ItemMsgPickUpSelect" />
+      <ItemComponent>
+        <StatusEffect type="OnBroken" target="This" interval="0.5" disabledeltatime="true"
+          stackable="false">
+          <Sound file="%ModDir%/Sound/chip_broken.ogg" range="1000" />
+          <Explosion range="25" ballastfloradamage="10" structuredamage="5" levelwalldamage="10"
+            itemdamage="5" force="25" severlimbsprobability="0.5" decal="explosion" decalsize="0.5">
+            <Affliction identifier="stun" strength="1" />
+          </Explosion>
+        </StatusEffect>
+      </ItemComponent>
     </Item>
 
     <!-- 传送芯片：装进耳机的「传送」槽，佩戴者生命值跌到 -50% 时被传送到最近的复生点 -->
@@ -149,12 +160,23 @@
       <Sprite texture="%ModDir%/Texture/icons.png" sourcerect="292,76,55,39" origin="0.5,0.5" />
       <Body width="30" height="18" density="10" waterdragcoefficient="8" />
       <Holdable slots="Any" handle1="0,0" msg="ItemMsgPickUpSelect" />
+      <ItemComponent>
+        <StatusEffect type="OnBroken" target="This" interval="0.5" disabledeltatime="true"
+          stackable="false">
+          <Sound file="%ModDir%/Sound/chip_broken.ogg" range="1000" />
+          <Explosion range="25" ballastfloradamage="10" structuredamage="5" levelwalldamage="10"
+            itemdamage="5" force="25" severlimbsprobability="0.5" decal="explosion" decalsize="0.5">
+            <Affliction identifier="stun" strength="1" />
+          </Explosion>
+        </StatusEffect>
+      </ItemComponent>
     </Item>
 
     <!-- buff 芯片：装进耳机的「增益」槽，佩戴者才获得全速拖拽（不消耗耐久） -->
     <Item name="" identifier="buff_chip" nameidentifier="buff_chip"
       descriptionidentifier="buff_chip" scale="0.35" category="Misc"
-      tags="smallitem,artifact_slot_headset,buff_headset_chips" cargocontaineridentifier="metalcrate"
+      tags="smallitem,artifact_slot_headset,buff_headset_chips"
+      cargocontaineridentifier="metalcrate"
       impactsoundtag="impact_metal_light">
       <Fabricate suitablefabricators="fabricator" requiredtime="10" requiresrecipe="false">
         <RequiredItem identifier="fpgacircuit" amount="5" />
