@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <infotexts language="English" nowhitespace="false" translatedname="English">
   <entityname.artifact_slot_headset>Alien Chip Slot Headset</entityname.artifact_slot_headset>
-  <entitydescription.artifact_slot_headset>A slotted auto-injecting headset built from alien materials.\nEffects: Immortality / Respawn / Teleport / Buff / Auto-injecting medicine / Life\n Effects are provided by the inserted chips and medicine</entitydescription.artifact_slot_headset>
+  <entitydescription.artifact_slot_headset>A slotted auto-injecting headset built from alien materials.\nEffects: Immortality / Respawn / Teleport / Buff Chip\nEffects are provided by the inserted chips and medicine</entitydescription.artifact_slot_headset>
   <afflictionname.custom_IgnoredByEnemyAI>Ignored Target</afflictionname.custom_IgnoredByEnemyAI>
   <afflictiondescription.custom_IgnoredByEnemyAI>With your vitality spent you are all but a corpse, yet the immortal blessing makes you vanish completely from the monsters' eyes</afflictiondescription.custom_IgnoredByEnemyAI>
   <afflictionname.custom_emergencyresponse>Efficient Drag</afflictionname.custom_emergencyresponse>

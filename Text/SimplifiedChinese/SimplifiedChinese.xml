@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <infotexts language="Simplified Chinese" nowhitespace="true" translatedname="中文(简体)">
   <entityname.artifact_slot_headset>异星芯片插槽耳机</entityname.artifact_slot_headset>
-  <entitydescription.artifact_slot_headset>使用了异星造物材料设计的插槽式自注射耳机\n可插入：不朽/复生/传送/增益/生命芯片\n插入对应芯片获取效果</entitydescription.artifact_slot_headset>
+  <entitydescription.artifact_slot_headset>使用了异星造物材料设计的插槽式自注射耳机\n可插入：不朽/复生/传送/增益芯片\n插入对应芯片获取效果</entitydescription.artifact_slot_headset>
   <afflictionname.custom_IgnoredByEnemyAI>被忽略的目标</afflictionname.custom_IgnoredByEnemyAI>
   <afflictiondescription.custom_IgnoredByEnemyAI>生命力耗尽的你仿佛已经是一具尸体，但不朽的祝福让你从怪物的眼中完全消失了</afflictiondescription.custom_IgnoredByEnemyAI>
   <afflictionname.custom_emergencyresponse>高效拖行</afflictionname.custom_emergencyresponse>
