@@ -159,6 +159,8 @@ namespace ProtagonistNeverDie
         private const int BlessingDelayMs = 2660;         // 除颤音效到回血生效的间隔
         private const float Cooldown = 120f;              // 传送 / 复生各自的冷却（秒）
 
+        private const float AffFullThreshold = 0.999f;    // 常驻 buff 低于该强度视为「未满」，下个 tick 补满
+
         private const float TeleportChipLoss = 0.10f;     // 传送芯片耐久消耗（玩家）
         private const float TeleportChipLossBot = 0.05f;  // 传送芯片耐久消耗（NPC）
         private const float RespawnChipLoss = 0.25f;      // 复生芯片耐久消耗（玩家）
@@ -326,9 +328,11 @@ namespace ProtagonistNeverDie
             chips.TryGetValue(ChipMaxHealth, out Item maxHealthChip);
 
             // 1) 增益芯片：全速拖拽
+            //   幂等：每 tick 检查强度，不足就补满。原先只在「首次插入」时施加一次，
+            //   之后强度若因 prefab 缓存失效 / 外部清除而掉下来，就再也补不回去
             if (buffChip != null)
             {
-                if (!BuffChipHolders.ContainsKey(character.ID)) ApplyPermanentBuffs(character);
+                ApplyPermanentBuffs(character);
             }
             else if (BuffChipHolders.ContainsKey(character.ID))
             {
@@ -338,7 +342,7 @@ namespace ProtagonistNeverDie
             // 1.5) 免死芯片：奇迹进行中 + 水压奇迹
             if (immortalChip != null)
             {
-                if (!ImmortalChipHolders.ContainsKey(character.ID)) ApplyImmortalBuffs(character);
+                ApplyImmortalBuffs(character);   // 幂等：强度不足会补满
 
                 bool immuneToPressure = character.IsImmuneToPressure;
                 if (!immuneToPressure
@@ -359,12 +363,12 @@ namespace ProtagonistNeverDie
             }
 
             // 1.6) 生命芯片：最大生命 +25%
-            //   custom_maxheathbuff 是 strengthchange=0（不衰减），所以只在「身上没有这条 buff」时施加一次；
-            //   拔出芯片 / 摘下耳机时整条移除
+            //   custom_maxheathbuff 是 strengthchange=0（不衰减），但同样需要幂等补满：
+            //   只在强度真的到顶时跳过，否则每 tick 补齐
             if (maxHealthChip != null)
             {
                 MaxHealthChipHolders[character.ID] = true;
-                if (!HasAffliction(character, AffMaxHealthBuff))
+                if (GetStrength(character, AffMaxHealthBuff) < AffFullThreshold)
                 {
                     ApplyFull(character, AffMaxHealthBuff);
                 }
@@ -678,14 +682,23 @@ namespace ProtagonistNeverDie
         // ---------------------------------------------------------------------
         private static AfflictionPrefab GetPrefab(Identifier identifier)
         {
-            if (PrefabCache.TryGetValue(identifier, out AfflictionPrefab cached)) return cached;
-
-            AfflictionPrefab prefab = null;
-            try { prefab = AfflictionPrefab.Prefabs[identifier]; }
+            // 每次都从注册表取当前实例，再与缓存比对：
+            //   * 早期调用可能取不到（加载顺序 / 重载），不能把 null 写进缓存，否则之后永远拿不到
+            //   * 游戏内重载 mod 后注册表会重建，旧 prefab 实例 Instantiate 出的 affliction 与新注册表不匹配
+            AfflictionPrefab registered = null;
+            try { registered = AfflictionPrefab.Prefabs[identifier]; }
             catch (Exception e) { LogError(e); }
 
-            PrefabCache[identifier] = prefab;
-            return prefab;
+            if (registered == null) return null;
+
+            if (PrefabCache.TryGetValue(identifier, out AfflictionPrefab cached)
+                && ReferenceEquals(cached, registered))
+            {
+                return cached;
+            }
+
+            PrefabCache[identifier] = registered;
+            return registered;
         }
 
         private static float GetStrength(Character character, Identifier identifier)
@@ -822,7 +835,7 @@ namespace ProtagonistNeverDie
         {
             if (character == null) return;
             BuffChipHolders[character.ID] = true;
-            ApplyFull(character, AffDrag);
+            if (GetStrength(character, AffDrag) < AffFullThreshold) ApplyFull(character, AffDrag);
         }
 
         private static void RemovePermanentBuffs(Character character)
@@ -837,8 +850,12 @@ namespace ProtagonistNeverDie
             if (character == null) return;
             ImmortalChipHolders[character.ID] = true;
 
-            // 奇迹进行中只给友方
-            if (character.TeamID == CharacterTeamType.Team1) ApplyFull(character, AffMiracle);
+            // 奇迹进行中只给友方；强度不足时补满
+            if (character.TeamID == CharacterTeamType.Team1
+                && GetStrength(character, AffMiracle) < AffFullThreshold)
+            {
+                ApplyFull(character, AffMiracle);
+            }
         }
 
         private static void RemoveImmortalBuffs(Character character)

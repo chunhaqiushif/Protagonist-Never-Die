@@ -18,7 +18,7 @@
   <entitydescription.respawn_chip>When loaded into the Alien Chip Slot Headset, the wearer gains Respawn Blessing once their vitality falls low enough, continuously healing their afflictions and The Price for a short time\nEach trigger drains the chip's condition and puts it on cooldown</entitydescription.respawn_chip>
   <entityname.teleport_chip>Teleport Chip</entityname.teleport_chip>
   <entitydescription.teleport_chip>When loaded into the Alien Chip Slot Headset, the wearer is teleported to the nearest respawn point once their vitality falls low enough (no teleport inside a submarine)\nIf the wearer dies, the body is brought back to the ship\nEach trigger drains the chip's condition and puts it on cooldown</entitydescription.teleport_chip>
-  <entityname.buff_chip>Buff Chip</entityname.buff_chip>
+  <entityname.buff_chip>Drag Chip</entityname.buff_chip>
   <entitydescription.buff_chip>When loaded into the Alien Chip Slot Headset, the wearer gains Efficient Drag and can drag incapacitated units quickly</entitydescription.buff_chip>
   <entityname.immortal_chip>Immortal Chip</entityname.immortal_chip>
   <entitydescription.immortal_chip>When loaded into the Alien Chip Slot Headset, the wearer gains the same effects as Miracle In Progress and Pressure Immunity</entitydescription.immortal_chip>
