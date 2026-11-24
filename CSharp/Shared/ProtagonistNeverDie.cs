@@ -173,7 +173,7 @@ namespace ProtagonistNeverDie
         private const int TeleportDelayMs = 200;          // 传送前播特效的提前量
         private const int BlessingDelayMs = 2660;         // 除颤音效到回血生效的间隔
         private const float TeleportCooldownSeconds = 60f;   // 传送芯片冷却（秒）
-        private const float RespawnCooldownSeconds = 240f;    // 复生芯片冷却（秒）
+        private const float RespawnCooldownSeconds = 120f;    // 复生芯片冷却（秒）
 
         private const float AffFullThreshold = 0.999f;    // 常驻 buff 低于该强度视为「未满」，下个 tick 补满
         private const int ChipDestroyDelayMs = 5000;      // 耐久归零 → 锁定，N 秒后销毁
